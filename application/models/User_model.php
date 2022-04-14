@@ -6,6 +6,7 @@ use Exception;
 use http\Client\Curl\User;
 use stdClass;
 use System\Emerald\Emerald_model;
+use Model\Analytics_model;
 
 /**
  * Created by PhpStorm.
@@ -268,22 +269,95 @@ class User_model extends Emerald_model {
     public function add_money(float $sum): bool
     {
         // TODO: task 4, добавление денег
+        App::get_s()->from(self::get_table())
+            ->where(['id' => $this->get_id()])
+            ->update([
+                sprintf('wallet_balance = wallet_balance + %s', App::get_s()->quote($sum)),
+                sprintf('wallet_total_refilled = wallet_total_refilled + %s', App::get_s()->quote($sum))
+            ])
+            ->execute();
 
-        return TRUE;
+        if(!App::get_s()->is_affected()){
+            return false;
+        }
+
+        //додаємо записи в таблицю analytics, в файлі Analytics_model.php в методі create я дав пояснення що я тут роблю і чого саме так
+        Analytics_model::create([
+            'user_id' => $this->get_id(),
+            'object' => 0,
+            'action' => 'add_wallet',
+            'object_id' => 0,
+            'amount' => round($sum)
+        ]);
+
+        return true;
+    }
+
+    /**
+     * @param int $amount
+     * @param bool $disable_lock
+     *
+     * @return bool
+     */
+    public function addLikesToLikesBalance(int $amount): bool
+    {
+        $response = true;
+
+        if($amount > 0){
+            App::get_s()->from(self::get_table())
+                ->where(['id' => $this->get_id()])
+                ->update(sprintf('likes_balance = likes_balance + %s', App::get_s()->quote($amount)))
+                ->execute();
+
+            if(!App::get_s()->is_affected())
+                $response = false;
+        }
+
+        return $response;
     }
 
 
     /**
      * @param float $sum
+     * @param bool $disable_lock
      *
      * @return bool
      * @throws \ShadowIgniterException
      */
-    public function remove_money(float $sum): bool
+    public function remove_money(float $sum, $disable_lock = false): bool
     {
         // TODO: task 5, списание денег
 
-        return TRUE;
+        //деякі перевірки можуть повторюватись з метода open() моделі Boosterpack_model тому що логіку цього методу я створював окремо від логікі метода open() так як розумію що цей метод можуть використовувати і якісь інші методи в логіці роботи яких треба буде виконати списання коштів і які там перевірки прописували я не можу знати, тому прописував цей метод "самодостатнім"
+        $response = true;
+        //про всяк-випадок округляємо значення $sum до 2 чисел після коми
+        $sum = round($sum, 2);
+        //для початку блокуємо таблицю user
+        if(!$disable_lock)
+            App::get_s()->from(self::get_table())->lock('WRITE');
+        //перевіряємо чи достатньо коштів для списання суми $sum
+        $this->reload();
+        if($this->get_wallet_balance() >= $sum){
+
+            App::get_s()->from(self::get_table())
+                ->where(['id' => $this->get_id()])
+                ->update([
+                    sprintf('wallet_balance = wallet_balance - %s', App::get_s()->quote($sum)),
+                    sprintf('wallet_total_withdrawn = wallet_total_withdrawn + %s', App::get_s()->quote($sum))
+                ])
+                ->execute();
+
+            if(!App::get_s()->is_affected())
+                $response = false;
+
+        }else{
+            $response = false;
+        }
+
+        if(!$disable_lock)
+            App::get_s()->unlock();
+
+        return $response;
     }
 
     /**
@@ -292,17 +366,29 @@ class User_model extends Emerald_model {
      */
     public function decrement_likes(): bool
     {
-        App::get_s()->from(self::get_table())
-            ->where(['id' => $this->get_id()])
-            ->update(sprintf('likes_balance = likes_balance - %s', App::get_s()->quote(1)))
-            ->execute();
 
-        if ( ! App::get_s()->is_affected())
-        {
-            return FALSE;
+        //UPDATE for task 4
+
+        $response = true;
+        App::get_s()->from(self::get_table())->lock('WRITE');
+
+        $this->reload();
+        if($this->get_likes_balance() >= 1){
+            App::get_s()->from(self::get_table())
+                ->where(['id' => $this->get_id()])
+                ->update(sprintf('likes_balance = likes_balance - %s', App::get_s()->quote(1)))
+                ->execute();
+
+            if(!App::get_s()->is_affected()){
+                $response = false;
+            }
+        }else{
+            $response = false;
         }
 
-        return TRUE;
+        App::get_s()->unlock();
+
+        return $response;
     }
 
     /**
@@ -342,11 +428,13 @@ class User_model extends Emerald_model {
     /**
      * @param string $email
      *
-     * @return User_model
+     * @return array
      */
-    public static function find_user_by_email(string $email): User_model
+    public static function find_user_by_email(string $email): array
     {
         // TODO: task 1, аутентификация
+        //виконуємо запит на отримання данних користувача по значенню його email. Так як значення поля email має бути унікальним (на мою думку) то я не обігрую можливу ситуацію коли може бути декілька користувачів з одним і тим самим значенням email
+        return App::get_s()->from(self::CLASS_TABLE)->where(['email' => $email])->one();
     }
 
     /**
@@ -442,6 +530,8 @@ class User_model extends Emerald_model {
             $o->id = NULL;
         } else {
             $o->id = $data->get_id();
+
+            $o->likes_balance = $data->get_likes_balance();
 
             $o->personaname = $data->get_personaname();
             $o->avatarfull = $data->get_avatarfull();

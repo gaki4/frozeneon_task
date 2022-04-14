@@ -123,7 +123,7 @@ $system_path = '../system';
  *
  * NO TRAILING SLASH!
  */
-$application_folder = '/var/www/html/application';
+$application_folder = '';
 
 /*
  *---------------------------------------------------------------

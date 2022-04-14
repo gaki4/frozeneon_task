@@ -6,6 +6,7 @@ use Exception;
 use System\Emerald\Emerald_model;
 use stdClass;
 use ShadowIgniterException;
+use Model\Analytics_model;
 
 /**
  * Created by PhpStorm.
@@ -169,11 +170,68 @@ class Boosterpack_model extends Emerald_model
     }
 
     /**
-     * @return int
+     * @return bool
      */
-    public function open(): int
+    public function check_isset(): bool
+    {
+        App::get_s()->from(self::CLASS_TABLE)
+            ->where(['id' => $this->get_id()])
+            ->select('id')
+            ->execute();
+
+        if(App::get_s()->get_num_rows() > 0){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    /**
+     * @param Boosterpack_model $user
+     * @param int $likes_amount
+     * 
+     * @return bool
+     */
+    public function open(User_model $user, int $likes_amount): bool
     {
         // TODO: task 5, покупка и открытие бустерпака
+
+        //викликаємо методи моделі User_model для списання коштів за бустерпак, додавання кількості коментарів і змінюємо значення профітбанку
+        $response = true;
+        
+        //запускаємо транзакцію
+        App::get_s()->set_transaction_repeatable_read()->execute();
+        App::get_s()->start_trans()->execute();
+
+        if($user->remove_money($this->get_price(), true)){
+            if($user->addLikesToLikesBalance($likes_amount)){
+
+                $this->set_bank($this->get_bank() + $this->get_price() - $this->get_us() - $likes_amount);
+                if(!App::get_s()->is_affected())
+                    $response = false;
+
+            }else{
+                $response = false;
+            }
+        }else{
+            $response = false;
+        }
+
+        if($response){
+            App::get_s()->commit()->execute();
+            //додаємо записи в таблицю analytics, в файлі Analytics_model.php в методі create я дав пояснення що я тут роблю і чого саме так
+            Analytics_model::create([
+                'user_id' => $user->get_id(),
+                'object' => $this->get_id(),
+                'action' => 'buy_boosterpack',
+                'object_id' => $likes_amount,
+                'amount' => round($this->get_price())
+            ]);
+        }else{
+            App::get_s()->rollback()->execute();
+        }
+
+        return $response;
     }
 
     /**

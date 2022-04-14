@@ -26,29 +26,29 @@ use Model\User_model;
       </button>
       <div class="collapse navbar-collapse" id="navbarTogglerDemo01">
         <li class="nav-item">
-            <? if (User_model::is_logged()) {?>
+            <?php if(User_model::is_logged()): ?>
               <a href="/main_page/logout" class="btn btn-primary my-2 my-sm-0"
                  data-target="#loginModal">Log out, <?= $user->personaname?>
               </a>
-            <? } else {?>
+            <?php else: ?>
               <button type="button" class="btn btn-success my-2 my-sm-0" type="submit" data-toggle="modal"
                       data-target="#loginModal">Log IN
               </button>
-            <? } ?>
+            <?php endif; ?>
         </li>
         <li class="nav-item">
-            <?  if (User_model::is_logged()) {?>
+            <?php if(User_model::is_logged()): ?>
               <button type="button" class="btn btn-success my-2 my-sm-0" type="submit" data-toggle="modal"
                       data-target="#addModal">Add balance
               </button>
-            <? }?>
+            <?php endif; ?>
         </li>
         <li class="nav-item">
-            <?  if (User_model::is_logged()) {?>
+            <?php if(User_model::is_logged()): ?>
                 <a href="" role="button">
-                    Likes:
+                    Likes: <?= $user->likes_balance?>
                 </a>
-            <? }?>
+            <?php endif; ?>
         </li>
       </div>
 <!--      <div class="collapse navbar-collapse" id="navbarTogglerDemo01">-->
@@ -128,7 +128,10 @@ use Model\User_model;
           </button>
         </div>
         <div class="modal-body">
-          <form>
+          <form method="post" action="/main_page/login">
+            <div class="invalid-feedback" v-if="failedLogin">
+              {{error_message}}
+            </div>
             <div class="form-group">
               <label for="exampleInputEmail1">Please enter login</label>
               <input type="email" class="form-control" id="inputEmail" aria-describedby="emailHelp" v-model="login" required>
@@ -200,6 +203,9 @@ use Model\User_model;
                   </a>
               </p>
               <form class="form-inline">
+                <div class="invalid-feedback" v-if="failedAddNewComment">
+                  {{error_message}}
+                </div>
                 <div class="form-group">
                   <input type="text" class="form-control" id="addComment" v-model="commentText">
                 </div>
@@ -232,6 +238,9 @@ use Model\User_model;
               <input type="text" class="form-control" id="addBalance" v-model="addSum" required>
               <div class="invalid-feedback" v-if="invalidSum">
                 Please write a sum.
+              </div>
+              <div class="invalid-feedback" v-if="failedAddSumToWallet">
+                {{error_message}}
               </div>
             </div>
           </form>

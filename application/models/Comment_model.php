@@ -246,11 +246,45 @@ class Comment_model extends Emerald_Model {
     public function increment_likes(User_model $user): bool
     {
         // TODO: task 3, лайк комментария
+        if($user->get_likes_balance() > 0 && $user->decrement_likes()){
+            App::get_s()->from(self::CLASS_TABLE)
+                ->where(['id' => $this->get_id()])
+                ->update(sprintf('likes = likes + %s', App::get_s()->quote(1)))
+                ->execute();
+
+            if(!App::get_s()->is_affected()){
+                return false;
+            }
+
+            return true;
+        }else{
+            return false;
+        }
     }
 
     public static function get_all_by_replay_id(int $reply_id)
     {
         // TODO task 2, дополнительно, вложенность комментариев
+    }
+
+    public static function checkCommentIsset(int $comment_id){
+        App::get_s()->from(self::CLASS_TABLE)
+            ->where(['id' => $comment_id])
+            ->select('id')
+            ->execute();
+
+        if(App::get_s()->get_num_rows() > 0){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public static function get_comments_by_post_id(int $post_id){
+        return App::get_s()->from(self::CLASS_TABLE)
+        ->join('user', [self::CLASS_TABLE.".user_id" => 'user.id'], 'LEFT OUTER')
+        ->where([self::CLASS_TABLE.'.assign_id' => $post_id])
+        ->select(self::CLASS_TABLE.'.*, user.personaname as user_personaname')->orderBy('id', 'ASC')->many();
     }
 
     /**

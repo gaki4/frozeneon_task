@@ -6,9 +6,12 @@ var app = new Vue({
 		login: '',
 		pass: '',
 		post: false,
+		failedLogin: false,
 		invalidLogin: false,
 		invalidPass: false,
 		invalidSum: false,
+		failedAddSumToWallet: false,
+		failedAddNewComment: false,
 		posts: [],
 		addSum: 0,
 		amount: 0,
@@ -59,12 +62,17 @@ var app = new Vue({
 
 				axios.post('/main_page/login', form)
 					.then(function (response) {
-						if(response.data.user) {
-							location.reload();
+						if(response.data.status == STATUS_SUCCESS){
+							if(response.data.user) {
+								location.reload();
+							}
+							setTimeout(function () {
+								$('#loginModal').modal('hide');
+							}, 500);
+						}else{
+							self.error_message = response.data.error_message;
+							self.failedLogin = true;
 						}
-						setTimeout(function () {
-							$('#loginModal').modal('hide');
-						}, 500);
 					})
 			}
 		},
@@ -79,8 +87,14 @@ var app = new Vue({
 				axios.post(
 					'/main_page/comment',
 					comment
-				).then(function () {
-
+				).then(function (response) {
+					if(response.data.status == STATUS_SUCCESS){
+						alert('Comment successfully added');
+						//тут можна додати оновлення блоку з коментарями для того щоб зявився новий коментар, або якось по іншому проінформувати користувача про те що коментарій успішно доданий. так як не використовував vue.js я вирішив не витрачати час на реалізацію функціоналу на front, так як основні завдання ТЗ звязані з беком, та при необходності в подальшому зміг би розібратись з vue.js
+					}else{
+						self.error_message = response.data.error_message;
+						self.failedAddNewComment = true;
+					}
 				});
 			}
 
@@ -92,13 +106,19 @@ var app = new Vue({
 			}
 			else{
 				self.invalidSum = false
+				self.failedAddSumToWallet = false
 				sum = new FormData();
 				sum.append('sum', self.addSum);
 				axios.post('/main_page/add_money', sum)
 					.then(function (response) {
-						setTimeout(function () {
-							$('#addModal').modal('hide');
-						}, 500);
+						if(response.data.status == STATUS_SUCCESS){
+							setTimeout(function () {
+								$('#addModal').modal('hide');
+							}, 500);
+						}else{
+							self.error_message = response.data.error_message;
+							self.failedAddSumToWallet = true;
+						}
 					})
 			}
 		},
@@ -121,7 +141,8 @@ var app = new Vue({
 			axios
 				.get(url)
 				.then(function (response) {
-					self.likes = response.data.likes;
+					if(response.data.likes)
+						self.likes = response.data.likes;
 				})
 
 		},
@@ -131,11 +152,13 @@ var app = new Vue({
 			pack.append('id', id);
 			axios.post('/main_page/buy_boosterpack', pack)
 				.then(function (response) {
-					self.amount = response.data.amount
-					if(self.amount !== 0){
+					if(response.data.status == STATUS_SUCCESS){
+						self.amount = response.data.amount
 						setTimeout(function () {
 							$('#amountModal').modal('show');
 						}, 500);
+					}else{
+						alert(response.data.error_message);
 					}
 				})
 		}

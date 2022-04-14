@@ -208,14 +208,57 @@ class Post_model extends Emerald_Model
     }
 
     /**
+     * @return bool
+     */
+    public static function check_post_isset(int $post_id): bool
+    {
+        App::get_s()->from(self::CLASS_TABLE)
+            ->where(['id' => $post_id])
+            ->select('id')
+            ->execute();
+
+        if(App::get_s()->get_num_rows() > 0){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    /**
+     * @return static[]
+     * @throws Exception
+     */
+    public static function get_post_data(int $post_id):array
+    {
+        return App::get_s()->from(self::CLASS_TABLE)
+        ->join('user', [self::CLASS_TABLE.".user_id" => 'user.id'], 'LEFT OUTER')
+        ->where([self::CLASS_TABLE.'.id' => $post_id])
+        ->select(self::CLASS_TABLE.'.*, user.avatarfull as user_avatarfull, user.personaname as user_personaname')->one();
+    }
+
+    /**
      * @param User_model $user
-     *
      * @return bool
      * @throws Exception
      */
     public function increment_likes(User_model $user): bool
     {
         // TODO: task 3, лайк поста
+        if($user->get_likes_balance() > 0 && $user->decrement_likes()){
+
+            App::get_s()->from(self::CLASS_TABLE)
+                ->where(['id' => $this->get_id()])
+                ->update(sprintf('likes = likes + %s', App::get_s()->quote(1)))
+                ->execute();
+
+            if(!App::get_s()->is_affected()){
+                return false;
+            }
+
+            return true;
+        }else{
+            return false;
+        }
     }
 
 
